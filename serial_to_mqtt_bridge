@@ -1,0 +1,45 @@
+import serial
+import paho.mqtt.client as mqtt
+
+# --- Serial setup ---
+SERIAL_PORT = "/dev/ttyUSB0"   # adjust for your Pi
+BAUD_RATE = 115200             # ME221 default (check manual)
+
+# --- MQTT setup ---
+MQTT_BROKER = "localhost"
+MQTT_PORT = 1883
+
+# connect to MQTT broker
+client = mqtt.Client(client_id="me221_bridge")
+client.connect(MQTT_BROKER, MQTT_PORT, 60)
+
+# connect to ME221 serial
+ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+
+print("Bridge started: reading ME221 -> MQTT")
+
+while True:
+    line = ser.readline().decode(errors="ignore").strip()
+    if not line:
+        continue
+
+    # Example: parse a space-separated line like "RPM=3000 TEMP=88 BOOST=12.3"
+    parts = line.split()
+    for part in parts:
+        if "=" in part:
+            key, value = part.split("=", 1)
+            topic = None
+            payload = value
+
+            # Map ME221 keys -> MQTT topics expected by Digifiz dash
+            if key.upper() == "RPM":
+                topic = "engine/rpm/state"
+            elif key.upper() == "TEMP":
+                topic = "engine/coolant/state"
+            elif key.upper() == "BOOST":
+                topic = "engine/boost/state"
+            # add more mappings as needed...
+
+            if topic:
+                client.publish(topic, payload)
+                print(f"Published {topic}: {payload}")

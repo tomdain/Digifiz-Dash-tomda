@@ -1,0 +1,56 @@
+import serial
+import struct
+
+# Change to your USB serial device
+PORT = "/dev/tty.usbserial-XXXXX"  # run `ls /dev/tty.*` to find it
+BAUD = 115200
+
+SYNC = b"ME"
+
+def parse_frame(frame):
+    # First two bytes are "ME"
+    length = struct.unpack_from("<H", frame, 2)[0]
+    msg_type = frame[4]
+    class_id = frame[5]
+    msg_id = frame[6]
+    payload = frame[7:7+length]
+
+    print(f"Frame: len={length}, type={msg_type}, class={class_id}, msg={msg_id}")
+    print("Payload (hex):", payload.hex(" "))
+
+    if class_id == 0:  # CLASS_ID_REPORT
+        if msg_id == 0:
+            print(" → Got a REPORT frame")
+        elif msg_id == 2:
+            print(" → Got a SET STATE response")
+
+
+def main():
+    ser = serial.Serial(PORT, BAUD, timeout=1)
+
+    # Send startup request (same as Arduino sketch)
+    req = bytes([0x4D, 0x45, 0x01, 0x00, 0x00, 0x00, 0x02, 0x01, 0x03, 0x05])
+    ser.write(req)
+    print("Sent startup request")
+
+    buffer = b""
+    while True:
+        data = ser.read(1024)
+        if data:
+            buffer += data
+            while True:
+                start = buffer.find(SYNC)
+                if start == -1 or len(buffer) < start+7:
+                    break
+                if len(buffer) >= start+7:
+                    frame_len = struct.unpack_from("<H", buffer, start+2)[0]
+                    total_len = 7 + frame_len
+                    if len(buffer) >= start + total_len:
+                        frame = buffer[start:start+total_len]
+                        parse_frame(frame)
+                        buffer = buffer[start+total_len:]
+                    else:
+                        break
+
+if __name__ == "__main__":
+    main()
