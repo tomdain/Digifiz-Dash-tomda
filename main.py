@@ -27,6 +27,8 @@ from aux_gauge.AuxGauge import AuxGauge
 from constants import *
 from variables import *
 from draw import *
+from meite import MEITE
+from serial_to_mqtt import SerialToMQTT
 
 #   Import pygame, for main graphics functions
 #   Date time is for the clock and perhaps MQTT
@@ -332,10 +334,26 @@ def draw_digifiz():
 #####
 
 def main():
+    bridge = SerialToMQTT(port="/dev/tty.PL2303G-USBtoUART1410", baud=115200)  # change to your serial device
+    bridge.start()
+
+    # ecu = MEITE(port="/dev/tty.PL2303G-USBtoUART1410", baud=115200)  # replace with your device
+    # ecu.connect()
+    # ecu.start_reporting()
+    # ecu.start_ack_loop()
+
+    # try:
+    #     for frame in ecu.read_frames():
+    #         parsed = ecu.parse_frame(frame)
+    #         print(parsed)
+    # except KeyboardInterrupt:
+    #     ecu.stop()
+
+
     #   MQTT Variables
     broker_address = "localhost"  # Broker address
     port = 1883  # Broker port
-    client = mqttClient.Client("pytest")  # create new instance
+    client = mqttClient.Client(client_id="me221_bridge")  # create new instance
     client.on_connect = on_connect  # attach function to callback
     client.on_message = on_message  # attach function to callback
     client.connect(broker_address, port=port)  # connect to broker
