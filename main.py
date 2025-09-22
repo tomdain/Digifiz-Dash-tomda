@@ -20,6 +20,8 @@
 
 
 import pygame
+import threading
+import paho.mqtt.client as mqtt
 from datetime import datetime
 import paho.mqtt.client as mqttClient
 from rpm.rpm import RpmGauge
@@ -74,6 +76,7 @@ def on_connect(client, userdata, flags, rc):
         print("Connected to broker")
         global Connected  # Use global variable
         Connected = True  # Signal connection
+        client.subscribe("#")
     else: print("Connection failed")
 
 
@@ -86,12 +89,17 @@ def on_message(client, userdata, message): print(message.topic + " " + message.p
 
 def on_message_rpm(digi, obj, message):
     rpm_mqtt = int((message.payload.decode()))
-    rpm.set_frame(rpm_mqtt)
+    rounded_rpm = round(rpm_mqtt / 100) * 100
+    print(f"[DASH] RPM callback fired → {rounded_rpm}")
+    rpm.set_frame(rounded_rpm)
 
 
 def on_message_coolant(digi, obj, message):
     coolant_mqtt = int((message.payload.decode()))
-    coolant.set_frame(coolant_mqtt)
+    scaling_factor = 120/19
+    rounded_coolant = round(coolant_mqtt / scaling_factor)
+    print(f"[DASH] Coolant callback fired → {rounded_coolant}")
+    coolant.set_frame(rounded_coolant)
 
 
 def on_message_egt(digi, obj, message):
@@ -105,7 +113,11 @@ def on_message_oilpressure(digi, obj, message):
 
 
 def on_message_boost(digi, obj, message):
-    boost_mqtt = int((message.payload.decode()))
+    boost_mqtt = float((message.payload.decode()))
+    rounded_boost = round(boost_mqtt)
+    print(f"[DASH] Boost callback fired → {rounded_boost}")
+    scaling_factor = 100/19
+    boost_mqtt = round(rounded_boost / scaling_factor)
     boost.set_frame(boost_mqtt)
 
 
@@ -133,7 +145,7 @@ def on_message_outside_temp(digi, obj, message):
 
 def on_message_fuel(digi, obj, message):
     global fuel_status
-    fuel_mqtt = int((message.payload.decode()))
+    fuel_mqtt = float((message.payload.decode()))
     fuel_status = fuel_mqtt
 
 
@@ -334,22 +346,6 @@ def draw_digifiz():
 #####
 
 def main():
-    bridge = SerialToMQTT(port="/dev/tty.PL2303G-USBtoUART1410", baud=115200)  # change to your serial device
-    bridge.start()
-
-    # ecu = MEITE(port="/dev/tty.PL2303G-USBtoUART1410", baud=115200)  # replace with your device
-    # ecu.connect()
-    # ecu.start_reporting()
-    # ecu.start_ack_loop()
-
-    # try:
-    #     for frame in ecu.read_frames():
-    #         parsed = ecu.parse_frame(frame)
-    #         print(parsed)
-    # except KeyboardInterrupt:
-    #     ecu.stop()
-
-
     #   MQTT Variables
     broker_address = "localhost"  # Broker address
     port = 1883  # Broker port
@@ -359,6 +355,33 @@ def main():
     client.connect(broker_address, port=port)  # connect to broker
     client.loop_start()  # start the loop
 
+    bridge = SerialToMQTT(client=client, port="/dev/tty.PL2303G-USBtoUART1410", baud=115200)  # change to your serial device
+    # Create and start a new thread for the bridge
+    bridge_thread = threading.Thread(target=bridge.start)
+    bridge_thread.daemon = True # Allows the main program to exit even if this thread is still running
+    bridge_thread.start()
+
+    #   MQTT Call backs... putting values in from topics
+    client.subscribe("#") #     Subscribes to all topics
+    client.message_callback_add('engine/rpm/state', on_message_rpm)
+    client.message_callback_add('engine/egt/state', on_message_egt)
+    client.message_callback_add('engine/oilpressure/state', on_message_oilpressure)
+    client.message_callback_add('engine/boost/state', on_message_boost)
+    client.message_callback_add('engine/coolant/state', on_message_coolant)
+    client.message_callback_add('engine/fuel/state', on_message_fuel)
+    client.message_callback_add('cabin/outside_temp/state', on_message_outside_temp)
+    client.message_callback_add('cabin/speed_cv/state', on_message_speed_cv)
+    client.message_callback_add('indicator/illumination/state', on_message_illumination)
+    client.message_callback_add('indicator/foglight/state', on_message_foglight)
+    client.message_callback_add('indicator/defog/state', on_message_defog)
+    client.message_callback_add('indicator/highbeam/state', on_message_highbeam)
+    client.message_callback_add('indicator/leftturn/state', on_message_leftturn)
+    client.message_callback_add('indicator/rightturn/state', on_message_rightturn)
+    client.message_callback_add('indicator/brakewarn/state', on_message_brakewarn)
+    client.message_callback_add('indicator/oillight/state', on_message_oillight)
+    client.message_callback_add('indicator/alt/state', on_message_alt)
+    client.message_callback_add('indicator/glow/state', on_message_glow)
+
     #   The main loop, clock setting and click x for quit etc.
     run = True
     while run:
@@ -367,33 +390,12 @@ def main():
             if event.type == pygame.QUIT:
                 run = False
 
-
-        #   MQTT Call backs... putting values in from topics
-
-        client.subscribe("#") #     Subscribes to all topics
-        client.message_callback_add('engine/rpm/state', on_message_rpm)
-        client.message_callback_add('engine/egt/state', on_message_egt)
-        client.message_callback_add('engine/oilpressure/state', on_message_oilpressure)
-        client.message_callback_add('engine/boost/state', on_message_boost)
-        client.message_callback_add('engine/coolant/state', on_message_coolant)
-        client.message_callback_add('engine/fuel/state', on_message_fuel)
-        client.message_callback_add('cabin/outside_temp/state', on_message_outside_temp)
-        client.message_callback_add('cabin/speed_cv/state', on_message_speed_cv)
-        client.message_callback_add('indicator/illumination/state', on_message_illumination)
-        client.message_callback_add('indicator/foglight/state', on_message_foglight)
-        client.message_callback_add('indicator/defog/state', on_message_defog)
-        client.message_callback_add('indicator/highbeam/state', on_message_highbeam)
-        client.message_callback_add('indicator/leftturn/state', on_message_leftturn)
-        client.message_callback_add('indicator/rightturn/state', on_message_rightturn)
-        client.message_callback_add('indicator/brakewarn/state', on_message_brakewarn)
-        client.message_callback_add('indicator/oillight/state', on_message_oillight)
-        client.message_callback_add('indicator/alt/state', on_message_alt)
-        client.message_callback_add('indicator/glow/state', on_message_glow)
-
         draw_digifiz()
         pygame.display.update()
+    # After the main loop, clean up
+    bridge.stop()
+    bridge_thread.join() # Wait for the thread to finish
     pygame.quit()
-
-
+    
 if __name__ == "__main__":
     main()

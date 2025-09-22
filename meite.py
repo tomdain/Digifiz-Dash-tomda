@@ -45,7 +45,7 @@ class MEITE:
         """Send ACK every second in a background thread"""
         def loop():
             ack = bytes([0x4D, 0x45, 0x01, 0x00,
-                         0x00, 0x00, 0x01, 0x00])
+                        0x0F, 0x00, 0x01, 0x00, 0x10, 0x3E])  # 7 bytes only
             while self.running:
                 self.ser.write(ack)
                 print("[MEITE] Sent ACK")

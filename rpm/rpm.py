@@ -9,7 +9,7 @@ class RpmGauge:
 		self.posxy = posxy
 		self.qty = qty
 		self.image = 0
-		self.frame = 0
+		self.frame = 000
 		self.set_image(self.frame)
 		self.grw_flag = True
 
@@ -17,8 +17,12 @@ class RpmGauge:
 		return self.image
 
 	def set_image(self, frame):
-		image = str(frame)+"00.png"
-		self.image = pygame.image.load('images/rpm/RPM ' + image)
+		if not frame == 0:
+			image = str(frame)+".png"
+			self.image = pygame.image.load('images/rpm/RPM ' + image)
+		else:
+			image = "000.png"
+			self.image = pygame.image.load('images/rpm/RPM ' + image)
 
 	def get_pos(self):
 		return (self.posxy)
